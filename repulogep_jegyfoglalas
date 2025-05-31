@@ -1,0 +1,278 @@
+https://github.com/Lajos-web/vscode-remote-try-python.git
+from abc import ABC, abstractmethod
+import uuid
+from datetime import datetime, timedelta
+
+class Jarat(ABC):
+    """
+    Absztrakt ősosztály a repülőjáratokhoz.
+    """
+    def __init__(self, jaratszam: str, celallomas: str, jegyar: float, indulas_ido: str, erkezes_ido: str):
+        if not isinstance(jaratszam, str) or not jaratszam:
+            raise ValueError("A járatszám nem lehet üres szöveg.")
+        if not isinstance(celallomas, str) or not celallomas:
+            raise ValueError("A célállomás nem lehet üres szöveg.")
+        if not isinstance(jegyar, (int, float)) or jegyar <= 0:
+            raise ValueError("A jegyár pozitív szám kell, hogy legyen.")
+        if not isinstance(indulas_ido, str) or not indulas_ido:
+            raise ValueError("Az indulási idő nem lehet üres szöveg.")
+        if not isinstance(erkezes_ido, str) or not erkezes_ido:
+            raise ValueError("Az érkezési idő nem lehet üres szöveg.")
+
+        self._jaratszam = jaratszam
+        self._celallomas = celallomas
+        self._jegy_alapar = jegyar
+        try:
+            self._indulas_ido = datetime.strptime(indulas_ido, "%Y-%m-%d %H:%M")
+            self._erkezes_ido = datetime.strptime(erkezes_ido, "%Y-%m-%d %H:%M")
+        except ValueError:
+            raise ValueError("Érvénytelen dátum/idő formátum (YYYY-MM-DD HH:MM).")
+
+    @property
+    def jaratszam(self):
+        return self._jaratszam
+
+    @property
+    def celallomas(self):
+        return self._celallomas
+
+    @property
+    def jegyar(self):
+        return self._jegy_alapar
+
+    @property
+    def indulas_ido(self):
+        return self._indulas_ido
+
+    @property
+    def erkezes_ido(self):
+        return self._erkezes_ido
+
+    @abstractmethod
+    def get_reszletek(self):
+        """
+        Absztrakt metódus a járat részleteinek lekérdezésére.
+        A leszármazott osztályoknak kell implementálniuk.
+        """
+        pass
+
+    def __str__(self):
+        return f"Járatszám: {self.jaratszam}, Célállomás: {self.celallomas}, Alapár: {self.jegy_alapar} HUF, Indulás: {self._indulas_ido.strftime('%Y-%m-%d %H:%M')}"
+
+class BelfoldiJarat(Jarat):
+    """
+    Belföldi járatokra vonatkozó osztály.
+    """
+    def __init__(self, jaratszam: str, celallomas: str, jegyar: float, indulas_ido: str, erkezes_ido: str, tavolsag_km: int):
+        super().__init__(jaratszam, celallomas, jegyar * 0.9, indulas_ido, erkezes_ido)
+        if not isinstance(tavolsag_km, int) or tavolsag_km <= 0:
+            raise ValueError("A távolság pozitív egész szám kell, hogy legyen.")
+        self._tavolsag_km = tavolsag_km
+
+    @property
+    def tavolsag_km(self):
+        return self._tavolsag_km
+
+    def get_reszletek(self):
+        return f"{super().get_reszletek()}, Távolság: {self.tavolsag_km} km (Belföldi)"
+
+class NemzetkoziJarat(Jarat):
+    """
+    Nemzetközi járatokra vonatkozó osztály.
+    """
+    def __init__(self, jaratszam: str, celallomas: str, jegyar: float, indulas_ido: str, erkezes_ido: str, vizum_szukseges: bool):
+        super().__init__(jaratszam, celallomas, jegyar * 1.2, indulas_ido, erkezes_ido)
+        if not isinstance(vizum_szukseges, bool):
+            raise TypeError("A vízum szükséges információ logikai érték kell, hogy legyen.")
+        self._vizum_szukseges = vizum_szukseges
+
+    @property
+    def vizum_szukseges(self):
+        return self._vizum_szukseges
+
+    def get_reszletek(self):
+        vizum_info = "igen" if self.vizum_szukseges else "nem"
+        return f"{super().get_reszletek()}, Vízum szükséges: {vizum_info} (Nemzetközi)"
+
+class JegyFoglalas:
+    """
+    Egy adott járatra szóló jegy foglalását tárolja.
+    """
+    def __init__(self, jarat: 'Jarat', utas_neve: str, utas_email: str):
+        if not isinstance(jarat, Jarat):
+            raise TypeError("A járat objektum kell, hogy legyen.")
+        if not isinstance(utas_neve, str) or not utas_neve:
+            raise ValueError("Az utas neve nem lehet üres szöveg.")
+        if not isinstance(utas_email, str) or not utas_email:
+            raise ValueError("Az utas e-mail címe nem lehet üres szöveg.")
+        if "@" not in utas_email:
+            raise ValueError("Érvénytelen e-mail cím formátum.")
+
+        self._jarat = jarat
+        self._utas_neve = utas_neve
+        self._utas_email = utas_email
+        self._foglalas_azonosito = self._generate_foglalas_azonosito()
+        self._foglalas_datuma = datetime.now()
+
+    @property
+    def jarat(self):
+        return self._jarat
+
+    @property
+    def utas_neve(self):
+        return self._utas_neve
+
+    @property
+    def utas_email(self):
+        return self._utas_email
+
+    @property
+    def foglalas_azonosito(self):
+        return self._foglalas_azonosito
+
+    @property
+    def foglalas_datuma(self):
+        return self._foglalas_datuma
+
+    def _generate_foglalas_azonosito(self):
+        """
+        Egyedi foglalási azonosító generálása.
+        """
+        return uuid.uuid4().hex[:8].upper()
+
+    def __str__(self):
+        return f"Fogl. azonosító: {self.foglalas_azonosito}, Járat: {self.jarat.jaratszam} ({self.jarat.celallomas}), Utas: {self.utas_neve}, Foglalás ideje: {self.foglalas_datuma.strftime('%Y-%m-%d %H:%M')}"
+
+class LegiTarsasag:
+    """
+    Légitársaságokat reprezentáló osztály, amely tartalmazza a járatokat és a foglalásokat.
+    """
+    def __init__(self, nev: str):
+        if not isinstance(nev, str) or not nev:
+            raise ValueError("A légitársaság neve nem lehet üres szöveg.")
+        self._nev = nev
+        self._jaratok = []
+        self._foglalasok = {} # Foglalási azonosító -> JegyFoglalas objektum
+
+    @property
+    def nev(self):
+        return self._nev
+
+    @property
+    def jaratok(self):
+        return self._jaratok
+
+    @property
+    def foglalasok(self):
+        return self._foglalasok
+
+    def add_jarat(self, jarat: 'Jarat'):
+        if isinstance(jarat, Jarat):
+            self._jaratok.append(jarat)
+        else:
+            raise TypeError("Csak Jarat vagy annak leszármazottja adható hozzá.")
+
+    def list_elerheto_jaratok(self):
+        """
+        Kilistázza az elérhető (jövőbeli) járatokat.
+        """
+        elerheto_jaratok = [jarat for jarat in self._jaratok if jarat.indulas_ido > datetime.now()]
+        if elerheto_jaratok:
+            print(f"{self.nev} elérhető járatai:")
+            for jarat in elerheto_jaratok:
+                print(f"- {jarat}")
+        else:
+            print(f"{self.nev} légitársaságnak jelenleg nincsenek elérhető járatai.")
+
+    def is_jarat_elerheto(self, jaratszam: str):
+        """
+        Ellenőrzi, hogy a megadott járatszámú járat létezik-e és a jövőben indul-e.
+        """
+        for jarat in self._jaratok:
+            if jarat.jaratszam == jaratszam and jarat.indulas_ido > datetime.now():
+                return True
+        return False
+
+    def jegy_foglalasa(self, jaratszam: str, utas_neve: str, utas_email: str):
+        """
+        Jegy foglalása egy adott járatszámra, validációval.
+        """
+        if not self.is_jarat_elerheto(jaratszam):
+            print(f"Hiba: A '{jaratszam}' járatszám nem létezik vagy a járat már elmúlt.")
+            return None
+
+        for jarat in self._jaratok:
+            if jarat.jaratszam == jaratszam:
+                uj_foglalas = JegyFoglalas(jarat, utas_neve, utas_email)
+                self._foglalasok[uj_foglalas.foglalas_azonosito] = uj_foglalas
+                print(f"Sikeres foglalás! Foglalási azonosító: {uj_foglalas.foglalas_azonosito}")
+                return uj_foglalas
+        return None
+
+    def lemond_foglalas(self, foglalas_azonosito: str):
+        """
+        Egy adott foglalási azonosítóval rendelkező foglalás lemondása, ellenőrzéssel.
+        """
+        if foglalas_azonosito in self._foglalasok:
+            torolt_foglalas = self._foglalasok.pop(foglalas_azonosito)
+            print(f"A {torolt_foglalas.foglalas_azonosito} azonosítójú foglalás sikeresen lemondva.")
+            return True
+        else:
+            print(f"Hiba: Nem található foglalás a megadott azonosítóval: {foglalas_azonosito}")
+            return False
+
+    def list_foglalasok(self):
+        """
+        Az összes foglalás listázása az adott légitársaságnál.
+        """
+        if self._foglalasok:
+            print(f"{self.nev} légitársaság foglalásai:")
+            for azonosito, foglalas in self._foglalasok.items():
+                print(f"- {foglalas}")
+        else:
+            print(f"{self.nev} légitársaságnál jelenleg nincsenek foglalások.")
+
+def main():
+    wizzair = LegiTarsasag("Wizz Air")
+
+    # Példa járatok hozzáadása
+    most = datetime.now()
+    egy_ora_mulva = most + timedelta(hours=1)
+    egy_nap_mulva = most + timedelta(days=1)
+    ket_nap_mulva = most + timedelta(days=2)
+
+    wizzair.add_jarat(BelfoldiJarat("W6 8001", "Debrecen", 8000, egy_ora_mulva.strftime("%Y-%m-%d %H:%M"), (most + timedelta(hours=2)).strftime("%Y-%m-%d %H:%M"), 200))
+    wizzair.add_jarat(NemzetkoziJarat("W6 2201", "London", 18000, egy_nap_mulva.strftime("%Y-%m-%d %H:%M"), (egy_nap_mulva + timedelta(hours=3)).strftime("%Y-%m-%d %H:%M"), False))
+    wizzair.add_jarat(BelfoldiJarat("W6 8005", "Szeged", 7500, ket_nap_mulva.strftime("%Y-%m-%d %H:%M"), (ket_nap_mulva + timedelta(hours=1, minutes=30)).strftime("%Y-%m-%d %H:%M"), 170))
+
+    while True:
+        print("\n--- Repülőjegy Foglalási Rendszer ---")
+        print("1. Jegy foglalása")
+        print("2. Foglalás lemondása")
+        print("3. Foglalások listázása")
+        print("4. Elérhető járatok listázása")
+        print("5. Kilépés")
+
+        valasztas = input("Válassz egy műveletet: ")
+
+        if valasztas == '1':
+            wizzair.list_elerheto_jaratok()
+            jaratszam = input("Add meg a foglalni kívánt járatszámot: ")
+            utas_neve = input("Add meg az utas nevét: ")
+            utas_email = input("Add meg az utas e-mail címét: ")
+            wizzair.jegy_foglalasa(jaratszam, utas_neve, utas_email)
+        elif valasztas == '2':
+            foglalas_azonosito = input("Add meg a lemondani kívánt foglalás azonosítóját: ")
+            wizzair.lemond_foglalas(foglalas_azonosito)
+        elif valasztas == '3':
+            wizzair.list_foglalasok()
+        elif valasztas == '4':
+            wizzair.list_elerheto_jaratok()
+        elif valasztas == '5':
+            print("Köszönjük, hogy használtad a rendszert!")
+            break
+        else:
+            print("Érvénytelen választás. Kérlek, válassz a menüpontok közül.")
+
+if __name__ == "__main__":
+    main()
